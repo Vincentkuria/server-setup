@@ -25,7 +25,7 @@ jobs:
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Create new user with home directory and bash shell
           useradd -m -s /bin/bash ${{ github.event.inputs.username }}
@@ -43,7 +43,7 @@ jobs:
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Create SSH directory for new user
           mkdir -p /home/${{ github.event.inputs.username }}/.ssh
@@ -61,7 +61,7 @@ jobs:
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Backup original sshd_config
           cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
@@ -90,7 +90,7 @@ jobs:
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Update package list
           apt-get update
@@ -112,7 +112,7 @@ jobs:
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Install prerequisites
           apt-get update
@@ -148,7 +148,7 @@ jobs:
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           echo "=== Final Setup Verification ==="
           echo "✅ User created: $(id ${{ github.event.inputs.username }})"
