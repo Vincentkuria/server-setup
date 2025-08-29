@@ -27,15 +27,9 @@ jobs:
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Create new user with home directory and bash shell
           useradd -m -s /bin/bash ${{ github.event.inputs.username }}
-          
-          # Set password
           echo "${{ github.event.inputs.username }}:${{ secrets.USER_PASSWORD }}" | chpasswd
-          
-          # Add user to sudo group
           usermod -aG sudo ${{ github.event.inputs.username }}
-          
           echo "User ${{ github.event.inputs.username }} created successfully"
     
     - name: Setup SSH access for new user
@@ -45,45 +39,12 @@ jobs:
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Create SSH directory for new user
           mkdir -p /home/${{ github.event.inputs.username }}/.ssh
           chmod 700 /home/${{ github.event.inputs.username }}/.ssh
-          
-          # Add SSH public key to authorized_keys
           echo "${{ secrets.SSH_PUBLIC_KEY }}" > /home/${{ github.event.inputs.username }}/.ssh/authorized_keys
           chmod 600 /home/${{ github.event.inputs.username }}/.ssh/authorized_keys
           chown -R ${{ github.event.inputs.username }}:${{ github.event.inputs.username }} /home/${{ github.event.inputs.username }}/.ssh
-          
           echo "SSH access configured for ${{ github.event.inputs.username }}"
-    
-    - name: Configure SSH security settings
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ github.event.inputs.server_host }}
-        username: root
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          # Backup original sshd_config
-          cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
-          
-          # Disable root login (handle both commented and uncommented cases)
-          sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-          sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-          
-          # Disable password authentication (handle both commented and uncommented cases)
-          sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-          sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-          
-          # Ensure PubkeyAuthentication is enabled
-          sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-          
-          # Test configuration before restarting
-          sshd -t
-          
-          # Restart SSH service
-          systemctl restart sshd
-          
-          echo "SSH security configuration updated"
     
     - name: Install and configure Nginx
       uses: appleboy/ssh-action@v1.0.3
@@ -92,19 +53,11 @@ jobs:
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Update package list
           apt-get update
-          
-          # Install Nginx (Debian)
           apt-get install -y nginx
-          
-          # Start and enable Nginx
           systemctl start nginx
           systemctl enable nginx
-          
-          # Check Nginx status
           systemctl status nginx --no-pager
-          
           echo "Nginx installed and configured"
     
     - name: Install Docker
@@ -114,33 +67,19 @@ jobs:
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Install prerequisites
           apt-get update
           apt-get install -y ca-certificates curl gnupg lsb-release
-          
-          # Add Docker's official GPG key (Debian)
           mkdir -p /etc/apt/keyrings
           curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          
-          # Set up Docker repository (Debian)
           echo \
             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
             $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-          
-          # Install Docker Engine
           apt-get update
           apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-          
-          # Start and enable Docker
           systemctl start docker
           systemctl enable docker
-          
-          # Add new user to docker group
           usermod -aG docker ${{ github.event.inputs.username }}
-          
-          # Test Docker installation
           docker --version
-          
           echo "Docker installed successfully"
     
     - name: Final verification and cleanup
@@ -156,10 +95,25 @@ jobs:
           echo "✅ SSH key added: $(ls -la /home/${{ github.event.inputs.username }}/.ssh/)"
           echo "✅ Nginx status: $(systemctl is-active nginx)"
           echo "✅ Docker status: $(systemctl is-active docker)"
-          echo "✅ SSH root login disabled"
-          echo "✅ SSH password authentication disabled"
+    
+    # 🔒 Move this step to the very end
+    - name: Configure SSH security settings
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ github.event.inputs.server_host }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
+          sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
+          sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
+          sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+          sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+          sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+          sshd -t
+          systemctl restart sshd
+          echo "SSH security configuration updated"
           echo ""
           echo "🎉 Server setup completed successfully!"
-          echo ""
           echo "You can now SSH to the server using:"
           echo "ssh ${{ github.event.inputs.username }}@${{ github.event.inputs.server_host }}"
