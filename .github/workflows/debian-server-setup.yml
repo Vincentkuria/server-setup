@@ -15,11 +15,11 @@ on:
 jobs:
   setup-server:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Create user and setup basic configuration
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -31,7 +31,7 @@ jobs:
           echo "${{ github.event.inputs.username }}:${{ secrets.USER_PASSWORD }}" | chpasswd
           usermod -aG sudo ${{ github.event.inputs.username }}
           echo "User ${{ github.event.inputs.username }} created successfully"
-    
+
     - name: Setup SSH access for new user
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -45,7 +45,7 @@ jobs:
           chmod 600 /home/${{ github.event.inputs.username }}/.ssh/authorized_keys
           chown -R ${{ github.event.inputs.username }}:${{ github.event.inputs.username }} /home/${{ github.event.inputs.username }}/.ssh
           echo "SSH access configured for ${{ github.event.inputs.username }}"
-    
+
     - name: Install and configure Nginx
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -59,29 +59,47 @@ jobs:
           systemctl enable nginx
           systemctl status nginx --no-pager
           echo "Nginx installed and configured"
-    
-    - name: Install Docker
+
+    - name: Install Docker using official apt repository
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ github.event.inputs.server_host }}
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
+          # Remove older conflicting packages
           apt-get update
+          apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc || true
+
+          # Install prerequisites
           apt-get install -y ca-certificates curl gnupg lsb-release
-          mkdir -p /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+          # Add Docker official GPG key
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+
+          # Set up the Docker apt repository
           echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+          $(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          # Install Docker Engine and related packages
           apt-get update
           apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-          systemctl start docker
+
+          # Enable and start Docker
           systemctl enable docker
+          systemctl start docker
+
+          # Add new user to the docker group
           usermod -aG docker ${{ github.event.inputs.username }}
-          docker --version
-          echo "Docker installed successfully"
-    
+
+          # Test Docker installation
+          docker run hello-world
+
+          echo "Docker installed successfully using official repository"
+
     - name: Final verification and cleanup
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -95,8 +113,7 @@ jobs:
           echo "✅ SSH key added: $(ls -la /home/${{ github.event.inputs.username }}/.ssh/)"
           echo "✅ Nginx status: $(systemctl is-active nginx)"
           echo "✅ Docker status: $(systemctl is-active docker)"
-    
-    # 🔒 Move this step to the very end
+
     - name: Configure SSH security settings
       uses: appleboy/ssh-action@v1.0.3
       with:
