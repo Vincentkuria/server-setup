@@ -1,4 +1,4 @@
-# .github/workflows/server-setup.yml
+
 name: Server Setup (Debian)
 
 on:
@@ -7,9 +7,11 @@ on:
       username:
         description: 'Username to create'
         required: true
-        default: 'deploy'
       server_host:
         description: 'Server IP or hostname'
+        required: true
+      user_password:
+        description: 'the user password for accessing root'
         required: true
 
 jobs:
@@ -28,7 +30,7 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           useradd -m -s /bin/bash ${{ github.event.inputs.username }}
-          echo "${{ github.event.inputs.username }}:${{ secrets.USER_PASSWORD }}" | chpasswd
+          echo "${{ github.event.inputs.username }}:${{ github.event.inputs.user_password }}" | chpasswd
           usermod -aG sudo ${{ github.event.inputs.username }}
           echo "User ${{ github.event.inputs.username }} created successfully"
 
